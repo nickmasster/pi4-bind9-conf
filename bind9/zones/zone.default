@@ -1,0 +1,24 @@
+zone "." {
+    type hint;
+    file "/usr/share/dns/root.hints";
+};
+
+zone "localhost" {
+    type master;
+    file "/etc/bind/db/db.loopback";
+};
+
+zone "127.in-addr.arpa" {
+    type master;
+    file "/etc/bind/db/db.127";
+};
+
+zone "0.in-addr.arpa" {
+    type master;
+    file "/etc/bind/db/db.0";
+};
+
+zone "255.in-addr.arpa" {
+    type master;
+    file "/etc/bind/db/db.255";
+};

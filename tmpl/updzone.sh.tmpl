@@ -1,0 +1,123 @@
+#!/bin/bash
+# Deployment script for BIND configuration
+# Copyright (C) 2020  Nick M. <https://github.com/nickmasster>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Location of zone file (default)
+OUTPUT_FILENAME='/etc/bind/db/db.{{ zone.name }}'
+
+# Location of temporary file with domains list
+DOMAINS_FILENAME='/tmp/domains.{{ zone.name }}'
+
+# Location of temporary zone file
+ZONE_FILENAME='/tmp/db.{{ zone.name }}'
+
+# Update zone without restrating BIND
+SILENT_RUN=false
+
+# Location of required applications
+CURL_BIN=`/usr/bin/which curl`
+SYSTEMCTL_BIN=`/usr/bin/which systemctl`
+CHKZONE_BIN=`/usr/bin/which named-checkzone`
+DATE_BIN=`/usr/bin/which date`
+
+{% if not disable_root %}# Script must run with root previleges
+if [ "$EUID" -ne 0 ]; then 
+    echo "Please run as root"
+    exit 1
+fi{% endif %}
+
+# CURL is required
+if [ ! -f "${CURL_BIN}" ]; then
+    echo "CURL must be installed"
+    exit 1
+fi
+
+# Build list of update URLs (via deployment script) 
+declare -a URL_LIST
+URL_LIST=({% for url in zone.update_urls %}
+    "{{ url }}"
+{% endfor %})
+
+# Get command line arguments
+while getopts o:s OPTION
+do
+    case "${OPTION}" in
+        o) OUTPUT_FILENAME=${OPTARG};;
+        s) SILENT_RUN=true;;
+        \?)
+            # echo "Invalid option: $OPTARG" 1>&2
+            exit 1
+        ;;
+        :)
+            echo "Invalid option: $OPTARG requires an argument" 1>&2
+            exit 1
+        ;;
+    esac
+done
+
+# Create temporary zone file
+echo "; Zone \"{{ zone.name }}\" had been auto-updated on $($DATE_BIN)
+;
+\$TTL    {{ zone.ttl }}
+@   IN  SOA {{ zone.ns }}. root.{{ zone.tld }}. (
+             1     ; Serial
+            {{ zone.soa.refresh }}     ; Refresh
+            {{ zone.soa.retry }}     ; Retry
+            {{ zone.soa.expire }}     ; Expire
+            {{ zone.soa.negttl }}   ) ; Negative Cache TTL
+;
+@   IN  NS  {{ zone.ns }}." > $ZONE_FILENAME
+
+# Fetch domain lists from provided URLs
+cat /dev/null > "$DOMAINS_FILENAME"
+for URL in "${URL_LIST[@]}";
+do
+    $CURL_BIN "$URL" >> "$DOMAINS_FILENAME"
+done
+
+# Update temporary zone with domains from lists (unique)
+while read DOMAIN; do
+    # Second-level domain
+    echo -e "$DOMAIN\tCNAME\t." >> $ZONE_FILENAME
+    # Wildcard third-level domain
+    echo -e "*.$DOMAIN\tCNAME\t." >> $ZONE_FILENAME
+done < <(cat $DOMAINS_FILENAME | sort | uniq)
+
+# Verify zone file
+if [ -f "${CHKZONE_BIN}" ]; then
+    $CHKZONE_BIN {{ zone.name }} "$ZONE_FILENAME"
+    if [ ! $? -eq 0 ]; then
+        echo "Failed to validate zone"
+        exit 1
+    fi
+fi
+
+# Remove temporary domains list
+rm -f "$DOMAINS_FILENAME"
+
+# Overwrite destination zone file
+mv -f "$ZONE_FILENAME" "$OUTPUT_FILENAME"
+# Set permissions for zone file
+chown -f {{ remote.user }}.{{ remote.group }} "$OUTPUT_FILENAME"
+
+# Restart BIND if not in silent mode
+if [ "$SILENT_RUN" = false ]; then
+    if [ ! -f "${SYSTEMCTL_BIN}" ]; then
+        echo "systemctl is missing"
+        exit 1
+    fi
+    $SYSTEMCTL_BIN reload {{ remote.service_name }}
+fi

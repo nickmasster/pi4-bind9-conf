@@ -1,0 +1,51 @@
+options {
+    # Working directory
+    directory "/var/cache/bind";
+
+    # Listen for requests
+    listen-on { localhost; };
+
+    # IPv6 disabled
+    listen-on-v6 { none; };
+
+    # Allow queries from local network only
+    allow-query { localnets; };
+
+    # Allow recursive queries from local network only
+    allow-recursion { localnets; };
+
+    # Enable recursive queries
+    recursion yes;
+    
+    # Minize responses, if no additional records requested
+    minimal-responses no-auth-recursive;
+
+    # Authoritative answers on NXDOMAIN response (useful for ad-blocking)
+    auth-nxdomain no;
+
+    # Forward requests to another NS only if not found locally/in cache
+    forward only;
+    forwarders { {% for dns in forwarders %}
+        {{ dns }};{% endfor %}
+    };
+
+    # Do not transfer the zone information to the secondary DNS
+    allow-transfer { none; };
+
+    # RPZ zones
+    response-policy { {% for zone in rpz_zones %}
+        zone "{{ zone.name }}" policy {{ zone.policy }};{% endfor %}
+    }
+    qname-wait-recurse no;
+
+    # DNSSEC configuration
+    dnssec-enable yes;
+    dnssec-validation auto;
+    dnssec-lookaside no;
+
+    # Maximum cache size
+    max-cache-size 200m;
+
+    # Do not expose BIND version
+    version none;
+};
