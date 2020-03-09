@@ -4,9 +4,15 @@
 
 Project contains configuration for [BIND 9](https://gitlab.isc.org/isc-projects/bind9) (mirror on [github](https://github.com/isc-projects/bind9)), including deployment script and **ads blocking** configuration.
 
-Optimized for Raspberry Pi4 running Raspbian. Contains default configuration for tld `home`.
+Optimized for Raspberry Pi4 running Raspbian.
 
 Project can be extended for different, automatically updated, DNS zones. Not only for ads blocking purpose.
+
+## Requirements
+
+- Python 3.4+
+- BIND should be installed on remote machine
+- cURL should be installed on remote machine in order to update zones automatically
 
 ## Installation
 
@@ -16,17 +22,17 @@ Project can be extended for different, automatically updated, DNS zones. Not onl
 
 For BIND 9 configuration see [BIND 9 Administrator Reference Manual](https://github.com/isc-projects/bind9/blob/master/doc/arm/Bv9ARM.pdf).
 
-This repository contains basic configuration, optimized for small home network, located in [bind9/](bind9).
+This repository contains basic configuration, optimized for small home network, located in [bind9/](bind9) and [tmpl/](tmpl) (configuration templates).
 
 ## Ads Blocking
 
 Project contains script for creating BIND zone file with ads-related domains in order to block requests to these domains on DNS level.
 
-Instead of resolving IP address of such domain, [NXDOMAIN](https://tools.ietf.org/html/rfc8020) response will be returned.
+Instead of resolving IP address of such domain, [NXDOMAIN](https://tools.ietf.org/html/rfc8020) response will be returned (configurable).
 
 Implemenation based on [RPZ (Response Policy Zones)](https://www.isc.org/rpz) added in BIND version 9.
 
-List of URLs contains domains list for RPZ can be found in [config.json](config.json).
+List of URLs contains domains list for RPZ can be found in [config.yml](config.yml).
 
 ## Manage and Deploy
 
@@ -37,18 +43,6 @@ If you are using `root` user for deployment (not recommmended) or `sudo` configu
 ### Deploy
 
 ```fab -H <hostname> --prompt-for-sudo-password deploy```
-
-### Autoupdate
-
-After deployment of basic configuration, you can enable or disable automatic daily updates of specified DNS zones.
-
-#### Enable
-
-```fab -H <hostname> --prompt-for-sudo-password autoupdate-on --zone <zonename>```
-
-#### Disable
-
-```fab -H <hostname> --prompt-for-sudo-password autoupdate-off --zone <zonename>```
 
 ## License
 
